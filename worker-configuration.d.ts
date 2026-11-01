@@ -16,6 +16,10 @@ interface Env {
   XAI_VOICE?: string;
   XAI_INSTRUCTIONS?: string;
   XAI_OUTBOUND_PURPOSE?: string;
+  COMPANY_NAME?: string;
+  OWNER_NAME?: string;
+  ASSISTANT_NAME?: string;
+  TASK_NAME?: string;
   XAI_CALL: DurableObjectNamespace<import("./src/xai-call").XaiCall>;
   CALL_SIDEBAND: DurableObjectNamespace<import("./src/call-sideband").CallSideband>;
 }

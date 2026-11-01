@@ -8,14 +8,16 @@ import {
   log,
   readTruncatedBody,
   type CallDirection,
+  brand,
+  setBrand,
 } from "./shared";
 
-export const XAI_GREETING = "お電話ありがとうございます。メタスペクトのAIアシスタントです。ご用件をお伺いいたします。";
+export const XAI_GREETING = "お電話ありがとうございます。{{COMPANY}}のAIアシスタントです。ご用件をお伺いいたします。";
 
 const STAFF_RULE =
-  "Internal staff (uchi/soto keigo): 鈴木 (Suzuki) and every other 株式会社メタスペクト staff member are OUR side. " +
-  "Never add さん/様 to them and never use honorific verbs for their actions (no 鈴木さん, スズキさん, 鈴木様, いらっしゃいます, おっしゃいます). " +
-  "Refer to them plainly and humbly: 「鈴木」「担当の鈴木」「鈴木より折り返しご連絡いたします」「鈴木は只今席を外しております」. " +
+  "Internal staff (uchi/soto keigo): {{OWNER}} and every other {{COMPANY}} staff member are OUR side. " +
+  "Never add さん/様 to them and never use honorific verbs for their actions (no {{OWNER}}さん, {{OWNER}}様, いらっしゃいます, おっしゃいます). " +
+  "Refer to them plainly and humbly: 「{{OWNER}}」「担当の{{OWNER}}」「{{OWNER}}より折り返しご連絡いたします」「{{OWNER}}は只今席を外しております」. " +
   "Use honorifics only for the caller and the caller's company.";
 
 const CLOSING_RULE =
@@ -37,10 +39,10 @@ const MANNERS_RULE =
   "If no name was given: 「恐れ入りますが、お名前をお伺いしてもよろしいでしょうか。」 (never お名前を頂戴). If hard to hear: 「恐れ入ります、少しお電話が遠いようですので、もう一度お願いいたします。」 never blame the caller. " +
   "Read callback numbers back digit by digit in groups (e.g. ゼロキュウゼロ、イチニサンヨン、ゴロクナナハチ) and confirm; also confirm dates/times. " +
   "Cushion words (恐れ入りますが / 差し支えなければ / あいにく / 申し訳ございませんが) ONLY when asking a favor or declining; never put them before repeating back or confirming the caller's info (say e.g. 「〇〇様でいらっしゃいますね」 directly). " +
-  "If the caller asks for 鈴木: 「申し訳ございません。あいにく鈴木は只今電話に出ることができません。よろしければ、鈴木より折り返しご連絡いたしましょうか。」 then take the message (name, company, callback number, preferred time, matter) and repeat it back; say 「鈴木に申し伝えます」. " +
+  "If the caller asks for {{OWNER}}: 「申し訳ございません。あいにく{{OWNER}}は只今電話に出ることができません。よろしければ、{{OWNER}}より折り返しご連絡いたしましょうか。」 then take the message (name, company, callback number, preferred time, matter) and repeat it back; say 「{{OWNER}}に申し伝えます」. " +
   "Never give out staff phone numbers or personal details (「本人に確認のうえ、必要な場合は折り返しご連絡いたします」). If you cannot answer: 「確認のうえ、折り返しご連絡いたします」. " +
   "Avoid よろしかったでしょうか (use よろしいでしょうか), 〜のほう, とんでもございません. If the caller is upset, first acknowledge (「さようでございましたか」). " +
-  "Outbound: 「お世話になっております。株式会社メタスペクトでございます。」, state the purpose in one sentence, ask 「ただいまお時間よろしいでしょうか。」; if the person is out, ask when they return and say we will call again.";
+  "Outbound: 「お世話になっております。{{COMPANY}}でございます。」, state the purpose in one sentence, ask 「ただいまお時間よろしいでしょうか。」; if the person is out, ask when they return and say we will call again.";
 
 const NAME_RULE =
   "Caller names: never guess, complete or romanize a caller's name or company. Write and repeat names only exactly as heard in Japanese; " +
@@ -49,16 +51,16 @@ const NAME_RULE =
 export const XAI_OUTBOUND_PURPOSE_DEFAULT = "サービスの解約をしたいのですが、どのようにすればよいでしょうか。";
 
 export function outboundGreeting(purpose?: string): string {
-  return `お世話になっております。メタスペクトのAIアシスタントです。${(purpose || XAI_OUTBOUND_PURPOSE_DEFAULT).trim()}`;
+  return `お世話になっております。{{COMPANY}}のAIアシスタントです。${(purpose || XAI_OUTBOUND_PURPOSE_DEFAULT).trim()}`;
 }
 
 export function buildXaiInstructions(base: string, peer: string, direction: CallDirection, purpose?: string): string {
   if (direction === "outbound") {
     base =
-      "You are the AI assistant of 株式会社メタスペクト and YOU placed this phone call (it is an outbound call, not a reception). " +
+      "You are the AI assistant of {{COMPANY}} and YOU placed this phone call (it is an outbound call, not a reception). " +
       `Your purpose: ${(purpose || XAI_OUTBOUND_PURPOSE_DEFAULT)}. ` +
       "After your opening line, listen to the other party, answer their questions, and pursue the purpose politely. " +
-      "Do not act as a reception desk and do not ask 「ご用件をお伺いいたします」. If asked, say you are an AI assistant calling on behalf of Meta-Spect.";
+      "Do not act as a reception desk and do not ask 「ご用件をお伺いいたします」. If asked, say you are an AI assistant calling on behalf of {{COMPANY}}.";
   }
   const note =
     direction === "outbound"
@@ -116,6 +118,7 @@ export class XaiCall extends CallSideband {
   }
 
   async fetch(request: Request): Promise<Response> {
+    setBrand(this.env);
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/resend") {
       await this.restoreFromStorage();
@@ -187,7 +190,7 @@ export class XaiCall extends CallSideband {
           voice: this.env.XAI_VOICE || "Ara",
           reasoning: { effort: "none" },
           turn_detection: { type: "server_vad" },
-          audio: { input: { transcription: { language_hint: "ja", keyterms: ["メタスペクト", "鈴木"] } } },
+          audio: { input: { transcription: { language_hint: "ja", keyterms: ["{{COMPANY}}", "{{OWNER}}"] } } },
         },
       });
       // Tools in a separate update so a schema mismatch can never drop the instructions above.
@@ -229,7 +232,7 @@ export class XaiCall extends CallSideband {
   }
 
   private send(event: Record<string, unknown>): void {
-    this.socket?.send(JSON.stringify(event));
+    this.socket?.send(brand(JSON.stringify(event)));
   }
 
   private onXaiEvent(raw: string): void {

@@ -25,6 +25,8 @@ import {
   log,
   normalizeSummary,
   readTruncatedBody,
+  brand,
+  setBrand,
 } from "./shared";
 import { buildTranscriptFields, type TranscriptLine } from "./transcript";
 
@@ -58,7 +60,7 @@ const OUTBOUND_SILENCE_MS = 10_000;
 // run the whole check and declare the test finished in one breath.)
 const OUTBOUND_FIRST_UTTERANCE =
   "Speak now in Japanese (do not wait further). Say only your self-introduction and ONE short sentence about the purpose, " +
-  "for a generic/test call exactly: 株式会社メタスペクトです。テストのお電話です。お声は聞こえますでしょうか。 " +
+  "for a generic/test call exactly: {{COMPANY}}です。テストのお電話です。お声は聞こえますでしょうか。 " +
   "Then stop and wait for the other party's reply. In this turn do NOT thank them, do NOT say goodbye and do NOT say the test/call is finished. " +
   "Do not use the inbound reception line.";
 // Max extra session.update re-sends when the effective session (e.g. after a
@@ -70,6 +72,10 @@ const txKey = (index: number): string =>
   `${TX_PREFIX}${String(index).padStart(6, "0")}`;
 
 export class CallSideband extends DurableObject<Env> {
+  protected sendBranded(data: string): void {
+    this.socket?.send(brand(data));
+  }
+
   protected socket: WebSocket | null = null;
   protected callId = "";
   protected callerId = "非通知";
@@ -112,6 +118,7 @@ export class CallSideband extends DurableObject<Env> {
   protected finalizePromise: Promise<void> | null = null;
 
   async fetch(request: Request): Promise<Response> {
+    setBrand(this.env);
     const url = new URL(request.url);
     if (request.method === "POST" && url.pathname === "/start") {
       let body: StartBody;
@@ -227,7 +234,7 @@ export class CallSideband extends DurableObject<Env> {
       ) {
         await this.ctx.storage.put("nudged30", true);
         log("info", "task.nudge_30min", { callId: this.callId });
-        this.socket.send(
+        this.sendBranded(
           JSON.stringify({
             type: "response.create",
             response: {
@@ -452,7 +459,7 @@ export class CallSideband extends DurableObject<Env> {
         tool_choice: "auto",
       },
     };
-    this.socket.send(JSON.stringify(event));
+    this.sendBranded(JSON.stringify(event));
     this.toolsEnabled = true;
     log("info", "openai.sideband.session_update_sent", {
       callId: this.callId,
@@ -559,7 +566,7 @@ export class CallSideband extends DurableObject<Env> {
       type: "response.create",
       response: { instructions },
     };
-    this.socket.send(JSON.stringify(event));
+    this.sendBranded(JSON.stringify(event));
     log("info", "openai.sideband.response_create_sent", {
       callId: this.callId,
       reason,
@@ -813,7 +820,7 @@ export class CallSideband extends DurableObject<Env> {
 
   /**
    * Inbound task: when the caller's transcript contains a switch word
-   * (メガネ/定期/解約/コンタクト…), add a one-time system item so the
+   * (定期/解約…), add a one-time system item so the
    * next turn follows the callback flow even if the model misheard. No
    * response.create (server VAD already answers the turn).
    */
@@ -826,7 +833,7 @@ export class CallSideband extends DurableObject<Env> {
     }
     this.inboundSwitchNudged = true;
     log("info", "inbound_task.switch_detected", { callId: this.callId });
-    this.socket.send(
+    this.sendBranded(
       JSON.stringify({
         type: "conversation.item.create",
         item: {
@@ -836,8 +843,8 @@ export class CallSideband extends DurableObject<Env> {
             {
               type: "input_text",
               text:
-                "System note (do not read aloud): 相手の発言に切り替えキーワード（メガネ/定期/解約/コンタクト 等）が含まれました。" +
-                "まだなら「メガネスーパー対応」に切り替えてください（最初は「折り返しありがとうございます。私は鈴木聡のAIアシスタントの中田です。…ご契約の内容をお伝えしてもよろしいでしょうか。」）。" +
+                "System note (do not read aloud): 相手の発言に切り替えキーワード（定期/解約 等）が含まれました。" +
+                "まだなら「{{TASK}}の対応」に切り替えてください（最初は「折り返しありがとうございます。私は{{OWNER}}のAIアシスタントの{{ASSISTANT}}です。…ご契約の内容をお伝えしてもよろしいでしょうか。」）。" +
                 "すでに切り替え済みなら、この注記は無視して会話を続けてください。",
             },
           ],
@@ -914,9 +921,9 @@ export class CallSideband extends DurableObject<Env> {
         sustainMs: BARGE_IN_SUSTAIN_MS,
       });
       if (this.responseActive) {
-        this.socket.send(JSON.stringify({ type: "response.cancel" }));
+        this.sendBranded(JSON.stringify({ type: "response.cancel" }));
       }
-      this.socket.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
+      this.sendBranded(JSON.stringify({ type: "output_audio_buffer.clear" }));
       this.audioPlaying = false;
       this.playbackUntilMs = 0;
     }, BARGE_IN_SUSTAIN_MS);
@@ -941,7 +948,7 @@ export class CallSideband extends DurableObject<Env> {
       this.silenceTimer = null;
       if (!this.peerSpokeOnce && !this.heardAssistant && this.socket) {
         log("info", "task.no_speech_hello", { callId: this.callId });
-        this.socket.send(
+        this.sendBranded(
           JSON.stringify({
             type: "response.create",
             response: {
@@ -973,7 +980,7 @@ export class CallSideband extends DurableObject<Env> {
       count: this.waitSilentlyCount,
       tSec: this.elapsedSec(),
     });
-    this.socket?.send(
+    this.sendBranded(
       JSON.stringify({
         type: "conversation.item.create",
         item: {
@@ -1001,7 +1008,7 @@ export class CallSideband extends DurableObject<Env> {
       reason,
       tSec: this.elapsedSec(),
     });
-    this.socket?.send(
+    this.sendBranded(
       JSON.stringify({
         type: "conversation.item.create",
         item: {
@@ -1104,7 +1111,7 @@ export class CallSideband extends DurableObject<Env> {
     if (!this.socket) {
       return;
     }
-    this.socket.send(
+    this.sendBranded(
       JSON.stringify({
         type: "conversation.item.create",
         item: {
@@ -1115,7 +1122,7 @@ export class CallSideband extends DurableObject<Env> {
       }),
     );
     // Text-only so the summary is never spoken to the caller.
-    this.socket.send(
+    this.sendBranded(
       JSON.stringify({
         type: "response.create",
         response: {
@@ -1236,18 +1243,18 @@ export class CallSideband extends DurableObject<Env> {
     const purpose = cc.purpose || OUTBOUND_GENERIC_PURPOSE;
     const contextJa =
       this.direction === "outbound"
-        ? `こちら（株式会社メタスペクトの電話ボット）から発信先「${this.callerId}」へかけた電話です。用件は「${purpose}」。` +
+        ? `こちら（{{COMPANY}}の電話ボット）から発信先「${this.callerId}」へかけた電話です。用件は「${purpose}」。` +
           `ボットの最初の発話（こちらの名乗り）は「${cc.botIntro || "なし"}」。` +
           `「宛先」は発信先の相手（会社名・部署・担当者が分かればそれ、分からなければ「${this.callerId}」）。` +
           `「用件」は用件「${purpose}」の結果（完了/未完了、相手の回答、受付番号・日付、次のアクション）を簡潔に。` +
           "「名乗り」は相手が名乗った会社名・担当者名（名乗らなければ「不明」）。"
         : this.inboundTask
-          ? `この番号には「${cc.purpose}」の電話がかかってくる想定で、ボットは鈴木聡のAIアシスタント「中田」として対応する指示を受けていました。` +
-            "相手がこの件（例: メガネスーパー、コンタクトの定期便、解約）で電話してきた場合は「タスク該当」を「はい」、それ以外は「いいえ」。" +
+          ? `この番号には「${cc.purpose}」の電話がかかってくる想定で、ボットは{{OWNER}}のAIアシスタント「{{ASSISTANT}}」として対応する指示を受けていました。` +
+            "相手がこの件（例: {{TASK}}）で電話してきた場合は「タスク該当」を「はい」、それ以外は「いいえ」。" +
             "追加キー（必ず含める、不明なら「不明」）: 「タスク該当」「解約結果」（完了／受付のみ／不可／本人連絡が必要 など）「解約日」（解約の効力日・どのお届けから止まるか）" +
             "「手数料」（差額・違約金の有無と金額）「受付番号」「担当者名」「本人連絡の要否」（本人が電話する必要があるか）" +
-            "「折り返し希望時間帯」（鈴木から折り返す場合の相手の都合の良い時間帯）「折り返し先番号」（鈴木が電話すべき番号）。" +
-            "「宛先」は伝言の宛先（タスク該当なら「鈴木 聡」）、「用件」は結果の要約、「名乗り」は相手の会社名・担当者名。"
+            "「折り返し希望時間帯」（{{OWNER}}から折り返す場合の相手の都合の良い時間帯）「折り返し先番号」（{{OWNER}}が電話すべき番号）。" +
+            "「宛先」は伝言の宛先（タスク該当なら「{{OWNER}}」）、「用件」は結果の要約、「名乗り」は相手の会社名・担当者名。"
           : "";
 
     if (this.transcripts.length === 0) {
@@ -1267,7 +1274,7 @@ export class CallSideband extends DurableObject<Env> {
     const transcriptText = this.transcripts
       .map(
         (line) =>
-          `${line.role === "caller" ? peerLabel : this.direction === "outbound" ? "ボット（メタスペクト）" : "Naruko"}: ${line.text}`,
+          `${line.role === "caller" ? peerLabel : this.direction === "outbound" ? "ボット（{{COMPANY}}）" : "Naruko"}: ${line.text}`,
       )
       .join("\n");
 
@@ -1280,7 +1287,7 @@ export class CallSideband extends DurableObject<Env> {
             Authorization: `Bearer ${this.env.OPENAI_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
+          body: brand(JSON.stringify({
             model: COMPLETIONS_MODEL,
             temperature: 0,
             response_format: { type: "json_object" },
@@ -1298,7 +1305,7 @@ export class CallSideband extends DurableObject<Env> {
                 content: transcriptText.slice(0, 12_000),
               },
             ],
-          }),
+          })),
         },
       );
       const bodyText = await response.text();
@@ -1393,7 +1400,7 @@ export class CallSideband extends DurableObject<Env> {
           "Content-Type": "application/json",
           Authorization: `Bearer ${auth}`,
         },
-        body: JSON.stringify(summary),
+        body: brand(JSON.stringify(summary)),
       });
       const responseText = await readTruncatedBody(response);
       log(response.ok ? "info" : "warn", "grok.summary.posted", {

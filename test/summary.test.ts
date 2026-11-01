@@ -25,11 +25,11 @@ test("outbound memo never leaves 宛先/用件/名乗り as 不明", () => {
     direction: "outbound",
     peerNumber: "09012345678",
     purpose: OUTBOUND_GENERIC_PURPOSE,
-    botIntro: "株式会社メタスペクトです。テストのお電話です。",
+    botIntro: "{{COMPANY}}です。テストのお電話です。",
   });
   assert.equal(out.宛先, "09012345678（発信先）");
   assert.match(out.用件, /^【発信 → 09012345678】用件: テスト\/汎用発信 \/ 結果: 不明$/);
-  assert.equal(out.名乗り, "相手: 不明 / こちら: 株式会社メタスペクトです。テストのお電話です。");
+  assert.equal(out.名乗り, "相手: 不明 / こちら: {{COMPANY}}です。テストのお電話です。");
   assert.equal(out.通話方向, "発信（こちらから発信）");
   assert.equal(out.発信先番号, "09012345678");
   assert.equal(out.発信目的, "テスト/汎用発信");
@@ -38,18 +38,18 @@ test("outbound memo never leaves 宛先/用件/名乗り as 不明", () => {
 
 test("task purpose + named callee are kept", () => {
   const s = normalizeSummary(
-    { 宛先: "メガネスーパー お客様センター", 用件: "解約受付済み", 名乗り: "メガネスーパー 田中" },
+    { 宛先: "サンプル通販 お客様センター", 用件: "解約受付済み", 名乗り: "サンプル通販 田中" },
     { ...defaults, callerId: "0120000000" },
   );
   const out = enrichOutboundSummary(s, {
     direction: "outbound",
     peerNumber: "0120000000",
-    purpose: "メガネスーパー定期便（契約番号0000000）解約",
-    botIntro: "鈴木の代理の者です。",
+    purpose: "サンプル通販定期便（契約番号0000000）解約",
+    botIntro: "{{OWNER}}の代理の者です。",
   });
-  assert.equal(out.宛先, "メガネスーパー お客様センター（0120000000）");
-  assert.equal(out.用件, "【発信 → 0120000000】用件: メガネスーパー定期便（契約番号0000000）解約 / 結果: 解約受付済み");
-  assert.equal(out.名乗り, "相手: メガネスーパー 田中 / こちら: 鈴木の代理の者です。");
+  assert.equal(out.宛先, "サンプル通販 お客様センター（0120000000）");
+  assert.equal(out.用件, "【発信 → 0120000000】用件: サンプル通販定期便（契約番号0000000）解約 / 結果: 解約受付済み");
+  assert.equal(out.名乗り, "相手: サンプル通販 田中 / こちら: {{OWNER}}の代理の者です。");
 });
 
 test("inbound summaries are unchanged", () => {
@@ -59,10 +59,10 @@ test("inbound summaries are unchanged", () => {
 
 test("mergeSummaries fills 不明 from the secondary (tool) summary", () => {
   const a = normalizeSummary({ 用件: "通話確認OK" }, defaults);
-  const b = normalizeSummary({ 用件: "テスト", 名乗り: "鈴木" }, defaults);
+  const b = normalizeSummary({ 用件: "テスト", 名乗り: "山田" }, defaults);
   const m = mergeSummaries(a, b);
   assert.equal(m.用件, "通話確認OK");
-  assert.equal(m.名乗り, "鈴木");
+  assert.equal(m.名乗り, "山田");
   assert.equal(m.宛先, "不明");
 });
 
@@ -70,9 +70,9 @@ test("firstAssistantLine picks the bot's opener", () => {
   assert.equal(
     firstAssistantLine([
       { role: "caller", text: "もしもし" },
-      { role: "assistant", text: " 株式会社メタスペクトです。 " },
+      { role: "assistant", text: " {{COMPANY}}です。 " },
     ]),
-    "株式会社メタスペクトです。",
+    "{{COMPANY}}です。",
   );
   assert.equal(firstAssistantLine([]), "");
 });
@@ -122,18 +122,18 @@ test("inbound task: appended after Naruko's instructions under the marker, idemp
 
 test("inbound task summary: outcome fields + purpose when the task applied", () => {
   const s = normalizeSummary(
-    { 用件: "定期便の解約を受付", 名乗り: "メガネスーパー 佐藤" },
+    { 用件: "定期便の解約を受付", 名乗り: "サンプル通販 佐藤" },
     { ...defaults, direction: "inbound", callerId: "09012345678" },
   );
   const out = enrichInboundTaskSummary(
     s,
     { タスク該当: "はい", 解約結果: "完了", 解約日: "2026-12-01分から停止", 手数料: "3,300円", 受付番号: "A123", 担当者名: "佐藤", 本人連絡の要否: "不要" },
-    { peerNumber: "09012345678", purpose: "定期便の解約の折り返し", botIntro: "株式会社メタスペクトでございます。" },
+    { peerNumber: "09012345678", purpose: "定期便の解約の折り返し", botIntro: "{{COMPANY}}でございます。" },
   );
   assert.equal(out.タスク該当, "はい");
   assert.equal(out.タスク目的, "定期便の解約の折り返し");
   assert.equal(out.着信番号, "09012345678");
-  assert.equal(out.宛先, "鈴木 聡（着信タスク）");
+  assert.equal(out.宛先, "{{OWNER}}（着信タスク）");
   assert.match(out.用件, /^【着信・折り返し 09012345678】用件: 定期便/);
   assert.match(out.用件, /手数料: 3,300円/);
   assert.match(out.用件, /受付番号: A123/);
@@ -152,13 +152,13 @@ test("inbound task summary: other callers keep the normal memo", () => {
 import { matchesInboundTaskSwitch, INBOUND_TASK_GREETING } from "../src/shared.ts";
 
 test("v4 switch words (lenient) and greeting; 折り返し alone does not switch", () => {
-  for (const t of ["メガネスーパーの者です", "めがねの件で", "眼鏡店です", "定期便について", "解約のご依頼", "コンタクトの件", "目がねスーパーです"]) {
+  for (const t of ["定期便について", "解約のご依頼"]) {
     assert.ok(matchesInboundTaskSwitch(t), t);
   }
   for (const t of ["折り返しお願いします", "見積もりの件でお電話しました", "山田と申します"]) {
     assert.ok(!matchesInboundTaskSwitch(t), t);
   }
-  assert.match(INBOUND_TASK_GREETING, /お電話ありがとうございます。株式会社メタスペクトです。AIアシスタントが対応いたしますので、お名前とご用件をお聞かせください。/);
+  assert.match(INBOUND_TASK_GREETING, /お電話ありがとうございます。{{COMPANY}}です。AIアシスタントが対応いたしますので、お名前とご用件をお聞かせください。/);
 });
 
 test("v4 summary records callback window/number", () => {
@@ -170,5 +170,5 @@ test("v4 summary records callback window/number", () => {
   );
   assert.equal(out.折り返し希望時間帯, "平日10-18時");
   assert.equal(out.折り返し先番号, "0120-000-000");
-  assert.match(out.用件, /鈴木からの折り返し: 平日10-18時・0120-000-000/);
+  assert.match(out.用件, /{{OWNER}}からの折り返し: 平日10-18時・0120-000-000/);
 });

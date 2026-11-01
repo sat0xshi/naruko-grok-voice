@@ -41,8 +41,8 @@ test("formats ordered 相手/ボット lines", () => {
   const text = formatTranscript(short);
   const lines = text.split("\n");
   assert.equal(lines.length, 4);
-  assert.equal(lines[0], "ボット：株式会社メタスペクトです。ご用件はいかがでしょうか。");
-  assert.equal(lines[1], "相手：山田商事の山田です。鈴木さんに折り返しをお願いしたいです。");
+  assert.equal(lines[0], "ボット：株式会社サンプルです。ご用件はいかがでしょうか。");
+  assert.equal(lines[1], "相手：山田商事の山田です。佐藤さんに折り返しをお願いしたいです。");
   assert.equal(lines[3], "相手：09012345678です。");
 });
 

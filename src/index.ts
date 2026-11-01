@@ -24,9 +24,9 @@ export { CallSideband, XaiCall };
 // v4: same opener with or without inbound task mode (AI disclosure up front).
 const DEFAULT_GREETING = INBOUND_TASK_GREETING;
 const DEFAULT_OUTBOUND =
-  "Outbound call for 株式会社メタスペクト (generic / test call). Wait for the other party to answer first. " +
+  "Outbound call for {{COMPANY}} (generic / test call). Wait for the other party to answer first. " +
   "If they stay silent for about 10 seconds, then speak first. " +
-  "First turn only: 「株式会社メタスペクトです。テストのお電話です。お声は聞こえますでしょうか。」 — then stop and wait for the reply. " +
+  "First turn only: 「{{COMPANY}}です。テストのお電話です。お声は聞こえますでしょうか。」 — then stop and wait for the reply. " +
   "After they reply, briefly confirm you can hear each other (one or two short sentences per turn). " +
   "Only after that exchange, close with 「ご確認ありがとうございました。失礼いたします。」. " +
   "Do not use the inbound reception line 「ご用件はいかがでしょうか」. " +
@@ -114,7 +114,7 @@ async function startCallSideband(
 const FORCE_OUTBOUND_OPEN =
   "Outbound open rule (sideband also enforces this): wait for the other party's self-introduction. " +
   "If about 10 seconds pass with no speech from them, speak first. " +
-  "When you speak, open with exactly: 株式会社メタスペクトです。 Then continue with the outbound task.\n\n";
+  "When you speak, open with exactly: {{COMPANY}}です。 Then continue with the outbound task.\n\n";
 
 async function handleIncomingCall(
   rawBody: ArrayBuffer,

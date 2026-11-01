@@ -99,7 +99,7 @@ export const JAPANESE_RULE =
  */
 export const OUTBOUND_TURN_RULES =
   "Turn rules for this outbound call (highest priority, do not read aloud):\n" +
-  "1) First turn: introduce yourself (「株式会社メタスペクトです。」) plus ONE short sentence about why you are calling " +
+  "1) First turn: introduce yourself (「{{COMPANY}}です。」) plus ONE short sentence about why you are calling " +
   "(generic/test call: 「テストのお電話です。お声は聞こえますでしょうか。」), then STOP and wait for the other party's reply.\n" +
   "2) Never say the call/test is finished, never thank them for their time and never say goodbye in the first turn or before the other party has replied at least once.\n" +
   "3) Keep every turn short (one or two sentences) and wait for the reply. Short back-channel sounds (はい / ええ / うん) are not a request to stop — continue naturally.\n" +
@@ -288,7 +288,7 @@ export const SUBMIT_CALL_SUMMARY_TOOL = {
     properties: {
       宛先: {
         type: "string",
-        description: "伝言の宛先（例: ななみ、鈴木）",
+        description: "伝言の宛先（例: ななみ、{{OWNER}}）",
       },
       用件: { type: "string", description: "用件の要約" },
       折り返し希望: {
@@ -558,7 +558,7 @@ export function enrichOutboundSummary(summary: CallSummary, ctx: CallContext): C
 export const INBOUND_TASK_MARKER = "### 着信タスク指示（最優先・この下の指示は上の指示より優先） ###";
 export const DEFAULT_INBOUND_TASK_PURPOSE = "着信タスク（INBOUND_TASK_INSTRUCTIONS の依頼）";
 export const INBOUND_TASK_GREETING =
-  "Say exactly this Japanese sentence and nothing else, then wait for the caller: お電話ありがとうございます。株式会社メタスペクトです。AIアシスタントが対応いたしますので、お名前とご用件をお聞かせください。";
+  "Say exactly this Japanese sentence and nothing else, then wait for the caller: お電話ありがとうございます。{{COMPANY}}です。AIアシスタントが対応いたしますので、お名前とご用件をお聞かせください。";
 
 /**
  * Words that switch an inbound task call to the callback flow (lenient: the
@@ -567,14 +567,14 @@ export const INBOUND_TASK_GREETING =
  * 折り返し is intentionally NOT a trigger (common in ordinary calls).
  */
 export const INBOUND_TASK_SWITCH_RE =
-  /メガネ|めがね|眼鏡|目がね|目金|megane|定期|解約|コンタクト|こんたくと/i;
+  /定期|解約/i;
 
 export function matchesInboundTaskSwitch(text: string): boolean {
   return INBOUND_TASK_SWITCH_RE.test(text);
 }
 /** Used only if Naruko's own instructions could not be read (empty). */
 export const INBOUND_FALLBACK_RECEPTION =
-  "あなたは株式会社メタスペクトの電話受付です。丁寧で簡潔な日本語で応対し、相手のお名前・会社名、用件、折り返し先の電話番号、折り返し希望の有無を伺って伝言を承ってください。";
+  "あなたは{{COMPANY}}の電話受付です。丁寧で簡潔な日本語で応対し、相手のお名前・会社名、用件、折り返し先の電話番号、折り返し希望の有無を伺って伝言を承ってください。";
 
 export function composeInboundTaskInstructions(
   native: string,
@@ -632,7 +632,7 @@ export function enrichInboundTaskSummary(
     out[k] = val(k);
   }
   if (isUnknown(out.宛先)) {
-    out.宛先 = "鈴木 聡（着信タスク）";
+    out.宛先 = "{{OWNER}}（着信タスク）";
   }
   const head = `【着信・折り返し ${ctx.peerNumber}】用件: ${purpose}`;
   const result = isUnknown(summary.用件) ? "" : summary.用件;
@@ -640,8 +640,32 @@ export function enrichInboundTaskSummary(
     `解約結果: ${out.解約結果} / 解約日: ${out.解約日} / 手数料: ${out.手数料} / ` +
     `受付番号: ${out.受付番号} / 担当者: ${out.担当者名} / 本人連絡: ${out.本人連絡の要否}` +
     (out.折り返し希望時間帯 !== "不明" || out.折り返し先番号 !== "不明"
-      ? ` / 鈴木からの折り返し: ${out.折り返し希望時間帯}・${out.折り返し先番号}`
+      ? ` / {{OWNER}}からの折り返し: ${out.折り返し希望時間帯}・${out.折り返し先番号}`
       : "");
   out.用件 = summary.用件.startsWith("【着信") ? summary.用件 : `${head} / ${facts}${result ? ` / 概要: ${result}` : ""}`;
   return out;
+}
+
+/**
+ * Brand placeholders used in prompts and summaries. Values come from env
+ * (COMPANY_NAME / OWNER_NAME / ASSISTANT_NAME / TASK_NAME); neutral defaults.
+ */
+export interface BrandEnv {
+  COMPANY_NAME?: string;
+  OWNER_NAME?: string;
+  ASSISTANT_NAME?: string;
+  TASK_NAME?: string;
+}
+const brandValues = { COMPANY: "当社", OWNER: "担当者", ASSISTANT: "AIアシスタント", TASK: "ご用件" };
+export function setBrand(env: BrandEnv): void {
+  brandValues.COMPANY = env.COMPANY_NAME?.trim() || "当社";
+  brandValues.OWNER = env.OWNER_NAME?.trim() || "担当者";
+  brandValues.ASSISTANT = env.ASSISTANT_NAME?.trim() || "AIアシスタント";
+  brandValues.TASK = env.TASK_NAME?.trim() || "ご用件";
+}
+/** Replace {{COMPANY}} {{OWNER}} {{ASSISTANT}} {{TASK}} in text (JSON-safe). */
+export function brand(text: string): string {
+  return text.replace(/\{\{(COMPANY|OWNER|ASSISTANT|TASK)\}\}/g, (_, k: keyof typeof brandValues) =>
+    brandValues[k].replace(/["\\]/g, ""),
+  );
 }
