@@ -1,0 +1,28 @@
+<!-- dialplan/public/00_naruko_xai.xml (template)
+     ACL "naruko" in autoload_configs/acl.conf.xml must allow <NARUKO_SIP_IP>. -->
+<include>
+  <!-- Inbound: Naruko -> FreeSWITCH -> xAI Grok Voice (TLS) -->
+  <extension name="naruko_to_xai">
+    <condition field="${acl(${network_addr} naruko)}" expression="^true$"/>
+    <condition field="destination_number" expression="^<YOUR_050_NUMBER_REGEX>$">
+      <action application="log" data="NOTICE NARUKO IN from=${sip_from_uri} to=${sip_to_uri} dest=${destination_number} cid=${caller_id_number}"/>
+      <action application="set" data="effective_caller_id_number=${caller_id_number}"/>
+      <action application="set" data="absolute_codec_string=PCMU,PCMA"/>
+      <action application="set" data="hangup_after_bridge=true"/>
+      <action application="set" data="sip_cid_type=pid"/>
+      <action application="bridge" data="{absolute_codec_string=PCMU,PCMA}sofia/external/sip:<XAI_PHONE_NUMBER>@sip.voice.x.ai:5061;transport=tls"/>
+    </condition>
+  </extension>
+
+  <!-- Outbound (optional): originate to Naruko and bridge the answered leg to xAI
+       with headers the Worker uses to switch to outbound mode. Example:
+       originate {origination_caller_id_number=<YOUR_050>}sofia/gateway/naruko/<CALLEE> &bridge({sip_h_X-Naruko-Direction=outbound,sip_h_X-Naruko-Callee=<CALLEE>}sofia/external/sip:<XAI_PHONE_NUMBER>@sip.voice.x.ai:5061;transport=tls)
+  -->
+
+  <extension name="naruko_unmatched_log">
+    <condition field="${acl(${network_addr} naruko)}" expression="^true$">
+      <action application="log" data="WARNING NARUKO UNMATCHED to=${sip_to_uri} dest=${destination_number}"/>
+      <action application="respond" data="404"/>
+    </condition>
+  </extension>
+</include>

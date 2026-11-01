@@ -1,0 +1,66 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "naruko-realtime-first-speech",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CALL_SIDEBAND",
+        "class_name": "CallSideband"
+      },
+      {
+        "name": "XAI_CALL",
+        "class_name": "XaiCall"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-call-sideband",
+      "new_sqlite_classes": ["CallSideband"]
+    },
+    {
+      "tag": "v2-xai-call",
+      "new_sqlite_classes": ["XaiCall"]
+    }
+  ],
+  "vars": {
+    "TRANSCRIPTS_BUCKET_NAME": "naruko-transcripts-prod"
+    // "TRANSCRIPT_VIEWER_BASE_URL": "https://transcripts.example.com"  // set ONLY after Access protects the viewer
+  },
+  // Private R2 bucket for transcripts > 6000 chars. R2 is not yet enabled on the
+  // account (API error 10042), so the binding is commented out; until then long
+  // transcripts are sent inline in `全文` (never dropped). After enabling R2 and
+  // creating the bucket (`npx wrangler r2 bucket create naruko-transcripts-prod`),
+  // uncomment and redeploy. Retention: undecided (no lifecycle rule yet).
+  // "r2_buckets": [
+  //   { "binding": "TRANSCRIPTS", "bucket_name": "naruko-transcripts-prod" }
+  // ],
+  "env": {
+    "staging": {
+      "name": "naruko-realtime-first-speech-staging",
+      "durable_objects": {
+        "bindings": [
+          { "name": "CALL_SIDEBAND", "class_name": "CallSideband" }
+        ]
+      },
+      "migrations": [
+        { "tag": "v1-call-sideband", "new_sqlite_classes": ["CallSideband"] }
+      ],
+      "vars": {
+        "TRANSCRIPTS_BUCKET_NAME": "naruko-transcripts-staging"
+      },
+      "r2_buckets": [
+        { "binding": "TRANSCRIPTS", "bucket_name": "naruko-transcripts-staging" }
+      ]
+      // Staging is NOT deployed. It needs its own secrets (OPENAI_*, NARUKO_*, GROK_*),
+      // its own OpenAI webhook/number, and the staging bucket to exist.
+    }
+  }
+}

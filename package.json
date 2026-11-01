@@ -1,0 +1,24 @@
+{
+  "name": "naruko-grok-voice",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker that bridges Naruko 050 calls to xAI Grok Voice (SIP) and posts a call summary.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && npm test && wrangler deploy --dry-run --env=\"\"",
+    "test": "node --test test/transcript.test.ts test/summary.test.ts",
+    "deploy": "wrangler deploy --env=\"\"",
+    "deploy:staging": "wrangler deploy --env staging",
+    "dev": "wrangler dev --port 43127",
+    "types": "wrangler types"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^7.21.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260921.1",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.136.1"
+  }
+}

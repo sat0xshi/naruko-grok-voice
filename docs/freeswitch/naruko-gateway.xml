@@ -1,0 +1,18 @@
+<!-- sip_profiles/external/naruko.xml (template) -->
+<include>
+  <gateway name="naruko">
+    <param name="proxy" value="<NARUKO_SIP_HOST>"/>
+    <param name="realm" value="<NARUKO_SIP_HOST>"/>
+    <param name="register" value="true"/>
+    <param name="username" value="<NARUKO_SIP_USER>"/>
+    <param name="password" value="<SECRET>"/>
+    <param name="from-user" value="<NARUKO_SIP_USER>"/>
+    <param name="from-domain" value="<NARUKO_SIP_HOST>"/>
+    <param name="caller-id-in-from" value="true"/>
+    <param name="register-transport" value="udp"/>
+    <param name="ping" value="30"/>
+    <variables>
+      <variable name="absolute_codec_string" value="PCMU,PCMA" direction="outbound"/>
+    </variables>
+  </gateway>
+</include>
